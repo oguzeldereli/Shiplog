@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Changelog, Provider, SourceKind } from "@/lib/types";
 import { changelogToMarkdown } from "@/lib/markdown";
 import { SAMPLE_COMMITS } from "@/lib/sample";
+import { ChangelogView } from "@/components/ChangelogView";
 
 const PROVIDER_LABEL: Record<Provider, string> = {
   free: "Free (no key)",
@@ -55,16 +56,19 @@ export default function Page() {
   const [selected, setSelected] = useState<Map<number, string>>(new Map());
   const [includeTitles, setIncludeTitles] = useState(true);
 
-  const [commits, setCommits] = useState("");
+  // Prefilled so a cold visitor is one click from a real result.
+  const [commits, setCommits] = useState(SAMPLE_COMMITS);
   const [context, setContext] = useState("");
 
   const [loadingRepo, setLoadingRepo] = useState(false);
   const [loadingItems, setLoadingItems] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [result, setResult] = useState<Changelog | null>(null);
+  const [publishUrl, setPublishUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const p = (localStorage.getItem(PROVIDER_STORAGE) as Provider) || "free";
@@ -212,6 +216,7 @@ export default function Page() {
     setGenerating(true);
     setError(null);
     setResult(null);
+    setPublishUrl(null);
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -241,6 +246,34 @@ export default function Page() {
     a.download = "CHANGELOG.md";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const publish = async () => {
+    if (!result) return;
+    setPublishing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          changelog: result,
+          source,
+          repo: meta ? { owner: meta.owner, repo: meta.repo } : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "publish failed");
+      setPublishUrl(window.location.origin + data.path);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const copyShareLink = async () => {
+    if (publishUrl) await navigator.clipboard.writeText(publishUrl);
   };
 
   const needsKey = provider !== "free";
@@ -536,22 +569,45 @@ export default function Page() {
         <section className="border border-ink-700 bg-ink-800/40">
           <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
             <div className="text-xs uppercase tracking-widest text-ink-400">output</div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
               <button onClick={copyMarkdown} className="text-xs text-ink-300 hover:text-accent">
                 copy md
               </button>
               <button onClick={downloadMarkdown} className="text-xs text-ink-300 hover:text-accent">
                 download
               </button>
+              <button
+                onClick={publish}
+                disabled={publishing}
+                className="bg-accent/90 px-3 py-1 text-xs font-semibold text-ink-900 hover:bg-accent disabled:opacity-40"
+              >
+                {publishing ? "publishing…" : "publish & share"}
+              </button>
             </div>
           </div>
           <ChangelogView c={result} />
+          {publishUrl && (
+            <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 px-5 py-3 text-xs">
+              <span className="text-ink-400">live at</span>
+              <a
+                href={publishUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent hover:underline break-all"
+              >
+                {publishUrl}
+              </a>
+              <button onClick={copyShareLink} className="text-ink-300 hover:text-accent">
+                copy link
+              </button>
+            </div>
+          )}
         </section>
       )}
 
       <footer className="mt-16 border-t border-ink-700 pt-4 text-xs text-ink-400">
         keys stay in your browser. requests go browser → this server → provider →
-        back. nothing stored.
+        back. nothing is stored unless you click “publish &amp; share”.
       </footer>
     </main>
   );
@@ -574,39 +630,3 @@ function Field(props: {
   );
 }
 
-const SECTION_TITLE: Record<string, string> = {
-  breaking: "Breaking",
-  added: "Added",
-  improved: "Improved",
-  fixed: "Fixed",
-};
-
-function ChangelogView({ c }: { c: Changelog }) {
-  return (
-    <article className="px-6 py-6">
-      <h2 className="text-2xl">{c.title || "Changelog"}</h2>
-      {c.summary && <p className="mt-2 text-sm text-ink-300">{c.summary}</p>}
-      <div className="mt-6 space-y-6">
-        {(c.sections ?? []).map((s) =>
-          s.items?.length ? (
-            <div key={s.kind}>
-              <h3 className="mb-2 text-xs uppercase tracking-widest text-accent">
-                {SECTION_TITLE[s.kind] ?? s.kind}
-              </h3>
-              <ul className="space-y-1.5">
-                {s.items.map((item, i) => (
-                  <li key={i} className="text-sm text-ink-200">
-                    <span>{item.text}</span>
-                    {item.refs?.length > 0 && (
-                      <span className="ml-2 text-xs text-ink-400">{item.refs.join(", ")}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null
-        )}
-      </div>
-    </article>
-  );
-}
