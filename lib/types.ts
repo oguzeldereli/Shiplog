@@ -17,6 +17,6 @@ export interface Changelog {
 }
 
 // "free" routes through a server-side free-tier key (no BYOK).
-export type Provider = "free" | "anthropic" | "openai" | "gemini";
+export type Provider = "free" | "groq" | "anthropic" | "openai" | "gemini";
 
 export type SourceKind = "commits" | "pulls" | "issues";

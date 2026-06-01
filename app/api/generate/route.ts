@@ -23,31 +23,39 @@ export async function POST(req: NextRequest) {
   const source = (body.source as SourceKind) ?? "commits";
   const model = body.model as string | undefined;
 
-  if (!provider || !["free", "anthropic", "openai", "gemini"].includes(provider)) {
+  if (!provider || !["free", "groq", "anthropic", "openai", "gemini"].includes(provider)) {
     return NextResponse.json(
-      { error: "provider must be free|anthropic|openai|gemini" },
+      { error: "provider must be free|groq|anthropic|openai|gemini" },
       { status: 400 }
     );
   }
   if (!commits.trim()) return NextResponse.json({ error: "no content provided" }, { status: 400 });
 
-  // Free, keyless path: use the server's Gemini free-tier key.
+  // Free, keyless path: served by a server-side key. Prefer Groq (no card on
+  // file = abuse can't cost money); fall back to Gemini if only that's set.
   if (provider === "free") {
-    const freeKey = process.env.GEMINI_FREE_KEY;
-    if (!freeKey) {
+    const groqKey = process.env.GROQ_FREE_KEY;
+    const geminiKey = process.env.GEMINI_FREE_KEY;
+    if (groqKey) {
+      provider = "groq";
+      apiKey = groqKey;
+    } else if (geminiKey) {
+      provider = "gemini";
+      apiKey = geminiKey;
+    } else {
       return NextResponse.json(
         { error: "free tier not configured on this deployment — pick a provider and bring a key" },
         { status: 503 }
       );
     }
-    if (!rateLimit(clientKey(req), FREE_LIMIT, FREE_WINDOW_MS)) {
+
+    const { ok } = await rateLimit(clientKey(req), FREE_LIMIT, FREE_WINDOW_MS);
+    if (!ok) {
       return NextResponse.json(
         { error: `free-tier limit reached (${FREE_LIMIT}/hour) — bring your own key to keep going` },
         { status: 429 }
       );
     }
-    provider = "gemini";
-    apiKey = freeKey;
   } else if (!apiKey) {
     return NextResponse.json({ error: "missing apiKey (BYOK)" }, { status: 400 });
   }

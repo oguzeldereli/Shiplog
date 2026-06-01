@@ -1,10 +1,11 @@
 import { Provider } from "./types";
 import { SYSTEM_PROMPT } from "./prompt";
 
-// "free" is resolved to a concrete provider (gemini) before reaching here.
+// "free" is resolved to a concrete provider (groq/gemini) before reaching here.
 export type LLMProvider = Exclude<Provider, "free">;
 
 export const DEFAULT_MODELS: Record<LLMProvider, string> = {
+  groq: "llama-3.3-70b-versatile",
   anthropic: "claude-sonnet-4-6",
   openai: "gpt-4o-mini",
   gemini: "gemini-2.5-flash",
@@ -18,6 +19,32 @@ export async function callProvider(args: {
 }): Promise<string> {
   const { provider, apiKey, userMessage } = args;
   const model = args.model || DEFAULT_MODELS[provider];
+
+  // Groq is OpenAI-compatible — same request shape, different base URL.
+  if (provider === "groq" || provider === "openai") {
+    const base =
+      provider === "groq"
+        ? "https://api.groq.com/openai/v1/chat/completions"
+        : "https://api.openai.com/v1/chat/completions";
+    const res = await fetch(base, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: userMessage },
+        ],
+      }),
+    });
+    if (!res.ok) throw new Error(`${provider} ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content ?? "";
+  }
 
   if (provider === "anthropic") {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -37,27 +64,6 @@ export async function callProvider(args: {
     if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
     const data = await res.json();
     return data.content?.[0]?.text ?? "";
-  }
-
-  if (provider === "openai") {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userMessage },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content ?? "";
   }
 
   if (provider === "gemini") {

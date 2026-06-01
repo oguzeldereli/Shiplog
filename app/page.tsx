@@ -7,6 +7,7 @@ import { SAMPLE_COMMITS } from "@/lib/sample";
 
 const PROVIDER_LABEL: Record<Provider, string> = {
   free: "Free (no key)",
+  groq: "Groq",
   anthropic: "Anthropic",
   openai: "OpenAI",
   gemini: "Gemini",
