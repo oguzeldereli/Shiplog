@@ -29,11 +29,3 @@ Open http://localhost:3000.
 
 `/api/generate` — forwards `{commits, provider, apiKey, context}` to the chosen provider with a strict system prompt asking for structured JSON (categories: breaking / added / improved / fixed). The prompt drops noise (merges, wip, chores, dep bumps) and rewrites surviving commits as benefit-oriented lines.
 
-## What's intentionally not here yet
-
-- OAuth / private repos
-- Hosted changelog pages
-- Webhooks / scheduled runs
-- Diff-aware generation (reads commit subjects only, not patches)
-
-Ship the thin version, see if people actually use it.
