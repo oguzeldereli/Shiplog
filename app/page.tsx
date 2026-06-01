@@ -585,9 +585,8 @@ export default function Page() {
               </button>
             </div>
           </div>
-          <ChangelogView c={result} />
           {publishUrl && (
-            <div className="flex flex-wrap items-center gap-3 border-t border-ink-700 px-5 py-3 text-xs">
+            <div className="flex flex-wrap items-center gap-3 border-b border-ink-700 px-5 py-3 text-xs">
               <span className="text-ink-400">live at</span>
               <a
                 href={publishUrl}
@@ -602,6 +601,7 @@ export default function Page() {
               </button>
             </div>
           )}
+          <ChangelogView c={result} />
         </section>
       )}
 
